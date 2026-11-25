@@ -1,5 +1,5 @@
 SAMERO 1.0.0-rc1 — first public release candidate
-EXE SHA-256: 7cad77818c11ad23435df10939fd45ac8f50f3704bae3761f64d47da403a03b7
+EXE SHA-256: ab6908c3618c11def323b5c9415152d51a6e4191ea2ab0dac719db87c1a0889a
 Windows 10/11 x64. Unsigned release candidate; not an official OpenAI product.
 Verified in this publishing workflow:
 - Linux and Windows x64 builds; PE and seven icon resource checks.
