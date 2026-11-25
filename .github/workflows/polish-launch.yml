@@ -1,0 +1,49 @@
+name: Polish first-release website
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/polish-launch.yml'
+      - 'scripts/render-launch.py'
+      - 'scripts/launch-team.b64'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+concurrency:
+  group: samero-launch-polish
+  cancel-in-progress: false
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Prepare media renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-pil ffmpeg fonts-dejavu-core
+      - name: Verify release and render launch artwork
+        run: |
+          (cd downloads && sha256sum -c SHA256SUMS.txt)
+          sha256sum downloads/*.exe downloads/*.zip assets/normal.png assets/open.png > /tmp/original-sha256
+          /usr/bin/python3 scripts/render-launch.py
+          sha256sum -c /tmp/original-sha256
+          git diff --check
+      - name: Publish verified website only
+        run: |
+          git add index.html en.html assets/launch-*.png assets/launch-poster.jpg assets/launch-vi.vtt assets/SAMERO-Launch-Trailer.mp4
+          if git diff --cached --quiet; then
+            echo "Nothing to publish"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Polish first-release website: six role mascots and 1080p60 launch trailer"
+            git push origin HEAD:main
+          fi
+      - name: Rebuild GitHub Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${{ github.repository }}/pages/builds"
