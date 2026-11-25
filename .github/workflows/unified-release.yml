@@ -35,6 +35,13 @@ jobs:
           gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections tests/update-manifest.c src/update.c src/base.c src/platform.c -Wl,--gc-sections -o /tmp/samero-test-update
           /tmp/samero-test-update
           node tests/update-ui.cjs
+          mkdir -p /tmp/samero-update-stage /tmp/samero-update-restart
+          for test in update-stage update-restart; do
+            gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections tests/$test.c src/update.c src/base.c src/platform.c -Wl,--gc-sections -o /tmp/samero-test-$test
+          done
+          /tmp/samero-test-update-stage /tmp/samero-update-stage
+          /tmp/samero-test-update-restart /tmp/samero-update-restart ../SAMERO-1.0.0-rc1.exe
+          GITHUB_RUN_NUMBER=0 python tools/build.py windows ../update-native-test.exe
           for test in tests/{bridge-extension,mascot-ui,music-ui,quota-ui,studio-audio,studio-ui,workforce-ui}.cjs; do node "$test"; done
           for file in web/*.ogg; do ffmpeg -v error -xerror -i "$file" -f null -; done
           python tests/bridge.py ../samero-linux
@@ -64,6 +71,9 @@ jobs:
       - name: Run actual native Windows smoke test
         shell: pwsh
         run: ./release-work/app/tests/windows-smoke.ps1 -Exe ./release-work/SAMERO-1.0.0-rc1.exe
+      - name: Native Windows update download and approved restart
+        shell: pwsh
+        run: ./release-work/app/tests/windows-update-smoke.ps1 -Exe ./release-work/update-native-test.exe
   publish:
     needs: [build, windows]
     runs-on: ubuntu-latest

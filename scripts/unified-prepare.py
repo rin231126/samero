@@ -74,3 +74,6 @@ subprocess.run([sys.executable, str(ROOT/'scripts/unified-diagnostics.py'), str(
 
 # Public release notification; independent of private development features.
 subprocess.run([sys.executable, str(ROOT/'scripts/unified-public-update.py'), str(APP)], check=True)
+
+# Public R3 streaming download and explicit side-by-side restart.
+subprocess.run([sys.executable, str(ROOT/'scripts/unified-public-r3.py'), str(APP)], check=True)
