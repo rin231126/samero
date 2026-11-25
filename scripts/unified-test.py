@@ -30,7 +30,7 @@ url=f'http://127.0.0.1:{server.server_port}/'
 os.makedirs('website-qa',exist_ok=True)
 try:
     with sync_playwright() as p:
-        browser=p.chromium.launch(channel='chrome',headless=True,args=['--no-sandbox'])
+        browser=p.chromium.launch(channel='chrome',headless=True,chromium_sandbox=True)
         for lang,file in [('vi','index.html'),('en','en.html')]:
             for width,height in [(1920,1080),(1440,900),(1366,768),(1024,768),(768,1024),(390,844),(320,740)]:
                 ctx=browser.new_context(viewport={'width':width,'height':height},accept_downloads=True, reduced_motion='reduce')

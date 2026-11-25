@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix='samero-preview-') as td:
             assert raw==(APP/'web/mascot'/f'{name}.png').read_bytes(),name
         assert urlopen(origin+'/favicon.ico',timeout=5).read()==(APP/'web/samero.ico').read_bytes()
         with sync_playwright() as p:
-            browser=p.chromium.launch(channel='chrome',headless=True,args=['--no-sandbox'])
+            browser=p.chromium.launch(channel='chrome',headless=True,chromium_sandbox=True)
             page=browser.new_page(viewport={'width':1500,'height':925},color_scheme='dark',reduced_motion='reduce')
             errors=[];bad=[]
             page.on('pageerror',lambda e:errors.append(str(e)))

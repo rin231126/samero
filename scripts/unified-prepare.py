@@ -83,3 +83,11 @@ subprocess.run([sys.executable, str(ROOT/'scripts/unified-update-launch.py'), st
 
 # Pass observed sandbox-read proof to VERIFY and distinguish reported from observed denials.
 subprocess.run([sys.executable, str(ROOT/'scripts/unified-verify-evidence.py'), str(APP)], check=True)
+
+# Apply the shared VERIFY diagnostics changes to the prepared Public app.
+import lzma
+verify_patch = lzma.decompress((ROOT / 'scripts' / 'unified-verify-diagnostics.patch.xz').read_bytes())
+verify_apply = ['git', 'apply', '--whitespace=error', '--directory=release-work/app']
+subprocess.run([*verify_apply, '--check', '-'], cwd=ROOT, input=verify_patch, check=True)
+subprocess.run([*verify_apply, '-'], cwd=ROOT, input=verify_patch, check=True)
+print('PASS: Public VERIFY diagnostics applied to the prepared source')
