@@ -6,6 +6,8 @@ on:
       - '.github/workflows/unified-release.yml'
       - 'release-input/**'
       - 'scripts/unified-*.py'
+      - 'scripts/native-local-fixture.py'
+      - 'scripts/windows-native-local-update.ps1'
   workflow_dispatch:
 permissions:
   contents: write
@@ -27,6 +29,7 @@ jobs:
       - name: Extract canonical source and build both targets
         run: |
           python scripts/unified-prepare.py
+          python scripts/unified-update-test-scope.py release-work/app
           cd release-work/app
           python tools/build.py linux ../samero-linux
           python tools/build.py windows ../SAMERO-1.0.0-rc1.exe
@@ -48,6 +51,16 @@ jobs:
           python tests/continuous.py ../samero-linux
           python tests/integration.py ../samero-linux
           python ../../scripts/unified-lifetime-test.py ../samero-linux
+      - name: Build isolated QA-only local handoff executable
+        run: |
+          mkdir -p release-work/qa
+          cp -a release-work/app "$RUNNER_TEMP/samero-local-test"
+          python scripts/native-local-fixture.py "$RUNNER_TEMP/samero-local-test"
+          cp scripts/windows-native-local-update.ps1 release-work/qa/windows-native-local-update.ps1
+          OUT="$PWD/release-work/qa/update-local-test.exe"
+          cd "$RUNNER_TEMP/samero-local-test"
+          GITHUB_RUN_NUMBER=0 python tools/build.py windows "$OUT"
+          python tests/pe_image.py "$OUT"
       - name: Capture actual app and test responsive views
         run: |
           python scripts/unified-preview.py release-work/samero-linux
@@ -71,9 +84,15 @@ jobs:
       - name: Run actual native Windows smoke test
         shell: pwsh
         run: ./release-work/app/tests/windows-smoke.ps1 -Exe ./release-work/SAMERO-1.0.0-rc1.exe
-      - name: Native Windows update download and approved restart
+      - name: Native HTTPS update staging and approval enforcement
         shell: pwsh
-        run: ./release-work/app/tests/windows-update-smoke.ps1 -Exe ./release-work/update-native-test.exe
+        run: ./release-work/app/tests/windows-update-smoke.ps1 -Exe ./release-work/update-native-test.exe -StageOnly
+      - name: Native Windows approved local handoff to exact release executable
+        shell: pwsh
+        run: ./release-work/qa/windows-native-local-update.ps1 -Exe ./release-work/qa/update-local-test.exe -Fixture ./release-work/SAMERO-1.0.0-rc1.exe
+      - name: Record attended QA limitation
+        shell: pwsh
+        run: Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value 'Automated native staging and local restart PASS. Interactive Internet-zone restart NOT VERIFIED; unsigned RC, Windows prompts retained.'
   publish:
     needs: [build, windows]
     runs-on: ubuntu-latest

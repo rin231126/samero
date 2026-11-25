@@ -7,6 +7,7 @@ on:
       - 'scripts/update-launch-trace.py'
       - 'scripts/native-local-fixture.py'
       - 'scripts/windows-native-local-update.ps1'
+      - 'scripts/unified-update-test-scope.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,6 +24,7 @@ jobs:
         run: |
           python scripts/unified-prepare.py
           python scripts/update-launch-trace.py release-work/app
+          python scripts/unified-update-test-scope.py release-work/app
           cd release-work/app
           GITHUB_RUN_NUMBER=0 python tools/build.py windows ../update-native-test.exe
           python tests/pe_image.py ../update-native-test.exe
@@ -52,9 +54,11 @@ jobs:
         with:
           name: native-update-diagnose
           path: release-work
-      - name: Trace real HTTPS update handoff without bypassing security prompts
+      - name: Verify HTTPS staging and preserve Windows security metadata
         shell: pwsh
-        run: ./release-work/app/tests/windows-update-smoke.ps1 -Exe ./release-work/update-native-test.exe
+        run: |
+          ./release-work/app/tests/windows-update-smoke.ps1 -Exe ./release-work/update-native-test.exe -StageOnly
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value 'HTTPS staging PASS. Attended Internet-zone restart: NOT VERIFIED. No Windows security prompts bypassed.'
 
   windows-local:
     runs-on: windows-latest

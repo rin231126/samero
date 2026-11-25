@@ -16,6 +16,9 @@ Verified in this publishing workflow:
 - Test fingerprint covers tracked workspace bytes, configured executable bytes and arguments; it does not establish unchanged external dependencies or replace independent acceptance.
 - Actual Linux Chrome Manager and embedded asset bytes; five viewport sizes.
 - Native Windows isolated smoke test: startup, workspace/profile management, bridge, checkpoint/restore.
+- Native Windows HTTPS download, SHA-256, Internet-zone metadata, rejection without explicit approval, preserved state and normal shutdown.
+- Native Windows approved local handoff to the exact release executable, verified process and build identity, preserved project state.
+- NOT VERIFIED: attended restart of the Internet-zone executable. Windows security prompts remain active; the release candidate is unsigned. The full attended test is retained in the source.
 The app's six role sprites, original logo, screenshots, video and downloads are generated from this same source archive.
 Not verified: authenticated live Codex operation, audio hardware, all Windows desktop configurations. See workflow logs for full regression results.
 """
