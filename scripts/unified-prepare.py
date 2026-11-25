@@ -71,3 +71,6 @@ subprocess.run([sys.executable, str(ROOT/'scripts/unified-access.py'), str(APP)]
 
 # Diagnose OS access without PowerShell and identify same-version source builds.
 subprocess.run([sys.executable, str(ROOT/'scripts/unified-diagnostics.py'), str(APP)], check=True)
+
+# Public release notification; independent of private development features.
+subprocess.run([sys.executable, str(ROOT/'scripts/unified-public-update.py'), str(APP)], check=True)

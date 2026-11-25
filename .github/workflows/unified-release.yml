@@ -32,6 +32,9 @@ jobs:
           python tools/build.py windows ../SAMERO-1.0.0-rc1.exe
           python tests/pe_image.py ../SAMERO-1.0.0-rc1.exe
           python tests/pe_icon.py ../SAMERO-1.0.0-rc1.exe
+          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections tests/update-manifest.c src/update.c src/base.c src/platform.c -Wl,--gc-sections -o /tmp/samero-test-update
+          /tmp/samero-test-update
+          node tests/update-ui.cjs
           for test in tests/{bridge-extension,mascot-ui,music-ui,quota-ui,studio-audio,studio-ui,workforce-ui}.cjs; do node "$test"; done
           for file in web/*.ogg; do ffmpeg -v error -xerror -i "$file" -f null -; done
           python tests/bridge.py ../samero-linux
@@ -81,6 +84,7 @@ jobs:
       - name: Package exact verified EXE and source, render video
         run: |
           /usr/bin/python3 scripts/unified-pack.py
+          python scripts/unified-public-manifest.py
           /usr/bin/python3 scripts/unified-film.py
       - name: Test bilingual website, real downloads, media, favicon
         run: python scripts/unified-test.py
