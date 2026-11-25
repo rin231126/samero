@@ -1,5 +1,5 @@
 from pathlib import Path
-import hashlib, zipfile, shutil, os
+import hashlib, zipfile, shutil, os, sys
 ROOT=Path(__file__).resolve().parent.parent
 WORK=ROOT/'release-work'
 APP=WORK/'app'
@@ -62,3 +62,6 @@ subprocess.run(args+[str(patch)],cwd=ROOT,check=True)
 for name, digest in expected_after.items():
     assert hashlib.sha256((APP/name).read_bytes()).hexdigest()==digest, ('unexpected patched source',name)
 print('PASS: exact locally tested resume/handover source and regression tests, version unchanged')
+
+# Preserve version 1.0 and add authenticated desktop UI lifetime management.
+subprocess.run([sys.executable, str(ROOT/'scripts/unified-lifetime.py'), str(APP)], check=True)

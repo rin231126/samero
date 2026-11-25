@@ -37,6 +37,7 @@ jobs:
           python tests/bridge.py ../samero-linux
           python tests/continuous.py ../samero-linux
           python tests/integration.py ../samero-linux
+          python ../../scripts/unified-lifetime-test.py ../samero-linux
       - name: Capture actual app and test responsive views
         run: |
           python scripts/unified-preview.py release-work/samero-linux
