@@ -68,3 +68,6 @@ subprocess.run([sys.executable, str(ROOT/'scripts/unified-lifetime.py'), str(APP
 
 # Probe the confirmed read-only sandbox before spending model quota on VERIFY.
 subprocess.run([sys.executable, str(ROOT/'scripts/unified-access.py'), str(APP)], check=True)
+
+# Diagnose OS access without PowerShell and identify same-version source builds.
+subprocess.run([sys.executable, str(ROOT/'scripts/unified-diagnostics.py'), str(APP)], check=True)
