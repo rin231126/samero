@@ -32,12 +32,12 @@ jobs:
           python tools/build.py windows ../SAMERO-1.0.0-rc1.exe
           python tests/pe_image.py ../SAMERO-1.0.0-rc1.exe
           python tests/pe_icon.py ../SAMERO-1.0.0-rc1.exe
-          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections tests/update-manifest.c src/update.c src/base.c src/platform.c -Wl,--gc-sections -o /tmp/samero-test-update
+          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections tests/update-manifest.c src/update.c src/base.c src/platform.c src/archive.c -Wl,--gc-sections -o /tmp/samero-test-update
           /tmp/samero-test-update
           node tests/update-ui.cjs
           mkdir -p /tmp/samero-update-stage /tmp/samero-update-restart
           for test in update-stage update-restart; do
-            gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections tests/$test.c src/update.c src/base.c src/platform.c -Wl,--gc-sections -o /tmp/samero-test-$test
+            gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections tests/$test.c src/update.c src/base.c src/platform.c src/archive.c -Wl,--gc-sections -o /tmp/samero-test-$test
           done
           /tmp/samero-test-update-stage /tmp/samero-update-stage
           /tmp/samero-test-update-restart /tmp/samero-update-restart ../SAMERO-1.0.0-rc1.exe
