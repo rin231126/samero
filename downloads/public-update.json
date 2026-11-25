@@ -1,8 +1,8 @@
 {
-  "bytes": 966144,
+  "bytes": 978432,
   "channel": "public",
   "schema": 1,
-  "sequence": 8,
-  "sha256": "3e0ad4b0cbe4b2c22732524274602b4cc328e4450c74a581cbea49e4222053ad",
+  "sequence": 12,
+  "sha256": "a02a55d9d4ad1cc66e9d034e6e970e54f969301d3c38517582adadaf38f78c9c",
   "version": "1.0.0-rc1"
 }
