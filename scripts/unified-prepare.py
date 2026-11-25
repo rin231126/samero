@@ -20,7 +20,7 @@ s=p.read_text()
 assert "if ($settings.version -ne '1.8.1-pixel-rc1')" in s
 p.write_text(s.replace("if ($settings.version -ne '1.8.1-pixel-rc1')","if ($settings.version -ne '1.0.0-rc1')"))
 p=APP/'PROJECT_STATUS.md'
-p.write_text('# SAMERO — 1.0.0-rc1 (first public release candidate)\n\n- First public version follows internal 1.9.0-studio-rc1.\n- Six updated role sprites are shared by app and website; original logo retained. No change to runner or persistent data format.\n- See TEST-RESULTS.txt for verified and unverified checks.\n- Older sections below are historical records.\n\n'+p.read_text())
+p.write_text('# SAMERO — 1.0.0-rc1 (first public release candidate)\n\n- First public version follows internal 1.9.0-studio-rc1.\n- Six updated role sprites are shared by app and website; original logo retained. Runner distinguishes reported blockers and stores optional test fingerprints; older journals remain readable.\n- See TEST-RESULTS.txt for verified and unverified checks.\n- Older sections below are historical records.\n\n'+p.read_text())
 p=APP/'tools/studio_assets.py'
 s=p.read_text()
 assert ' im.save(out/p.name,optimize=True)' in s
@@ -40,3 +40,25 @@ old='run("gcc", *flags, "-DSAM_WINDOWS", "-mabi=ms",'
 new='run("gcc", *flags, "-U_FORTIFY_SOURCE", "-D_FORTIFY_SOURCE=0", "-DSAM_WINDOWS", "-mabi=ms",'
 assert s.count(old)==1, 'unexpected Windows compiler invocation'
 p.write_text(s.replace(old,new))
+
+# Apply the locally tested, reviewable patch to the canonical archive.
+import subprocess
+expected_before = {
+    'src/runner.c': '178e1717360ee4c0d17c994e14e332632b72ea7a51c91631b5361abdfd6fdcba',
+    'web/app.js': 'ea85dc1cc44f57a081d63a9ea185abb5a5b2cb9b32971da05f80336392c15f3f',
+    'tests/integration.py': '8a029444d7de5e592f7d5b261947dfd1d5977815c3d08d9fd17a17ee72ad0e12',
+}
+expected_after = {
+    'src/runner.c': 'a4c48ca0cc97f9eb82397ce953a9e3422ff09506fc9191696fa3abc6588e2dda',
+    'web/app.js': 'de245ce833742c8500e7e23ffe77b25b7358e98580025de6797a14162f30b726',
+    'tests/integration.py': 'f542ee5d8c3f6d2ce299d1be311e6d3effe3aba90a45a7c25ed9be1c12037b67',
+}
+for name, digest in expected_before.items():
+    assert hashlib.sha256((APP/name).read_bytes()).hexdigest()==digest, ('unexpected original',name)
+patch = ROOT/'scripts/unified-resume.patch'
+args = ['git','apply','--directory=release-work/app']
+subprocess.run(args+['--check',str(patch)],cwd=ROOT,check=True)
+subprocess.run(args+[str(patch)],cwd=ROOT,check=True)
+for name, digest in expected_after.items():
+    assert hashlib.sha256((APP/name).read_bytes()).hexdigest()==digest, ('unexpected patched source',name)
+print('PASS: exact locally tested resume/handover source and regression tests, version unchanged')

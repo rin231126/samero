@@ -1,0 +1,190 @@
+--- a/src/runner.c
++++ b/src/runner.c
+@@ -15,3 +15,3 @@
+     char title[256],accept[680],evidence[680],test_session[33],verify_session[33];
+-    char baseline[33],checkpoint[33],recovery_checkpoint[33],accepted_hash[65];
++    char baseline[33],checkpoint[33],recovery_checkpoint[33],accepted_hash[65],test_signature[65];
+     char changes[4096],change_status[24],errors[2048],error_status[24];
+@@ -31,3 +31,3 @@
+     char source_hash[65],failure_hash[65],failure_gate[24],journal_hash[65],head_hash[65];
+-    int recovery_scan,final_repair,catchup_index; char catchup_hash[65],accept_hash[65]; long long generation;
++    int recovery_scan,final_repair,catchup_index,resume_verify; char catchup_hash[65],accept_hash[65]; long long generation;
+     int reconnects; long long retry_at;
+@@ -55,2 +55,9 @@
+ }
++/* A reported blocker is not an independently verified failure or a PASS. */
++static const char *review_blocker(const char *s) {
++    if (!strncmp(s,"BLOCKED_ACCESS:",15) || !strncmp(s,"Chính sách chặn đọc repo.",strlen("Chính sách chặn đọc repo.")) ||
++        !strncmp(s,"Môi trường chặn lệnh đọc repo.",strlen("Môi trường chặn lệnh đọc repo."))) return "BLOCKED_ACCESS";
++    if (!strncmp(s,"BLOCKED_RESOURCE:",17)) return "BLOCKED_RESOURCE";
++    return "";
++}
+ static void queue_json(const Run *r,Buf *b) {
+@@ -58,3 +65,5 @@
+     KEY(b,"goal",r->goal); KEY(b,"mode",modes[r->mode]); KEY(b,"phase",phases[r->phase]);
+-    KEY(b,"reason",r->reason); KEY(b,"test",result(r->test)); KEY(b,"build",result(r->build));
++    KEY(b,"reason",r->reason);
++    KEY(b,"blocker",r->mode==REVIEW && r->phase==VERIFY && r->index<r->count?review_blocker(r->tasks[r->index].evidence):"");
++    KEY(b,"test",result(r->test)); KEY(b,"build",result(r->build));
+     NUM(b,"index",r->index); NUM(b,"attempt",r->attempt); NUM(b,"revision",r->revision); NUM(b,"at",r->at);
+@@ -69,3 +78,3 @@
+         KEY(b,"baselineCheckpoint",t->baseline); KEY(b,"checkpoint",t->checkpoint);
+-        KEY(b,"recoveryCheckpoint",t->recovery_checkpoint); KEY(b,"acceptedSourceHash",t->accepted_hash);
++        KEY(b,"recoveryCheckpoint",t->recovery_checkpoint); KEY(b,"acceptedSourceHash",t->accepted_hash); KEY(b,"testSignature",t->test_signature);
+         KEY(b,"checkpointKind",*t->checkpoint?(t->historical_checkpoint?"HISTORICAL OBSERVATION":"ACCEPTANCE"):"NOT RECORDED");
+@@ -89,3 +98,3 @@
+     KEY(&b,"sourceHash",r->source_hash); KEY(&b,"failureHash",r->failure_hash); KEY(&b,"failureGate",r->failure_gate);
+-    NUM(&b,"recoveryScan",r->recovery_scan); NUM(&b,"finalRepair",r->final_repair);
++    NUM(&b,"resumeVerify",r->resume_verify); NUM(&b,"recoveryScan",r->recovery_scan); NUM(&b,"finalRepair",r->final_repair);
+     NUM(&b,"reconnects",r->reconnects); NUM(&b,"retryAt",r->retry_at);
+@@ -147,2 +156,4 @@
+             json_field(j,t,"acceptedSourceHash",k->accepted_hash,sizeof(k->accepted_hash));
++            if (json_get(j,t,"testSignature")>=0 && !json_field(j,t,"testSignature",k->test_signature,sizeof(k->test_signature))) return 0;
++            if (*k->test_signature && (strlen(k->test_signature)!=64 || strspn(k->test_signature,"0123456789abcdef")!=64)) return 0;
+             json_field(j,t,"changedFiles",k->changes,sizeof(k->changes));
+@@ -213,3 +224,3 @@
+     }
+-    r->recovery_scan=NUMBER(j,"recoveryScan",0)==1; r->final_repair=NUMBER(j,"finalRepair",0)==1;
++    r->resume_verify=NUMBER(j,"resumeVerify",0)==1; r->recovery_scan=NUMBER(j,"recoveryScan",0)==1; r->final_repair=NUMBER(j,"finalRepair",0)==1;
+     r->mode=(Mode)mv; r->phase=(Phase)pv; r->index=(int)index;
+@@ -588,3 +599,3 @@
+             ok=get_doc(m,"profiles",dest,&profile,e) && FIELD(&profile,"home",r->home);
+-            if (ok) { strcpy(r->profile,dest); r->limited_at=0; r->limit_owner[0]=0; r->mode=ACTIVE; r->snapshot=1;
++            if (ok) { r->resume_verify=r->phase==VERIFY; strcpy(r->profile,dest); r->limited_at=0; r->limit_owner[0]=0; r->mode=ACTIVE; r->snapshot=1;
+                 note(r,"Đã bàn giao theo xác nhận. Hồ sơ đích tiếp tục từ hàng đợi."); }
+@@ -754,2 +765,14 @@
+ }
++/* Bind an observed test to the archived workspace and configured command.
++   External dependencies and environment are not fully fingerprinted; VERIFY
++   must still inspect actual evidence and may require a fresh test. */
++static int test_signature(const Run *r,char out[65]) {
++    char executable[65]; Error ignored={0}; out[0]=0;
++    if (strlen(r->source_hash)!=64 || !digest_file(r->checks[0].exe.p,executable,&ignored)) return 0;
++    Sha256 sha={0};
++    sha_update(&sha,r->source_hash,65);
++    sha_update(&sha,r->checks[0].exe.p,strlen(r->checks[0].exe.p)+1);
++    sha_update(&sha,r->checks[0].args,strlen(r->checks[0].args)+1);
++    sha_update(&sha,executable,65); sha_finish(&sha,out); return 1;
++}
+ static int launch_stage(Manager *m,Run *r,Error *e) {
+@@ -763,2 +786,6 @@
+         strcpy(t->error_status,t->baseline_recovery?"PARTIAL":"RECORDED");
++    }
++    if (r->phase==TEST && r->index<r->count) {
++        Task *t=&r->tasks[r->index]; t->test_session[0]=0;
++        test_signature(r,t->test_signature);
+     }
+@@ -777,3 +804,3 @@
+             if (r->phase==WORK) buffer_text(&b,"Inspect existing work; implement only missing deliverables. Preserve user files. Manager owns TASK_QUEUE.json and PROJECT_STATUS.md; never edit them. For incomplete history write a separate recovery report with files, decisions, commands/results and NOT RECORDED gaps; rerun checks as needed. Manager records observed completed commands. Never invent history, publish, deploy or use credentials. ");
+-            else buffer_fmt(&b,"Independent read-only verification. Configured task test exited 0, session %s. Check every criterion against real evidence. Do not require pending status PASS, old queue counters/phase, current task receipt or future Release build. Check both TASK_QUEUE.json and PROJECT_STATUS.md for prior Manager receipts, plus actual artifacts. Historical checkpoint/delta covers only its recorded interval; NOT RECORDED is unknown, not zero. If criterion permits legacy gaps, use documented substitute evidence and verify all underlying deliverables. Never invent missing history or silently waive a requirement. If a safe repair or new check can supply missing evidence, return met:false, needsReview:false. If a genuine external need, contradiction or unavailable mandatory proof remains, return met:false, needsReview:true. Manager writes current receipt after acceptance. ",t->test_session);
++            else buffer_fmt(&b,"Independent read-only verification. Manager observed test exit 0, session %s (possibly reused for matching tracked files and command; not proof of changed external inputs). First use allowed read-only tools to inspect TASK_QUEUE.json, PROJECT_STATUS.md and required artifacts. If access is denied, return met:false, needsReview:true, evidence beginning BLOCKED_ACCESS: with denied path/tool. For unavailable mandatory external resources use BLOCKED_RESOURCE:. Distinguish unreadable from missing. Check all current criteria; no pending PASS, transient counters, current receipt or future Release build required. Historical deltas cover recorded intervals; NOT RECORDED is unknown. Verify permitted substitutes, never invent evidence or waive requirements. Repairable gaps: met:false, needsReview:false; genuine blockers: needsReview:true. Manager writes receipt after acceptance. ",t->test_session);
+             if (r->phase==VERIFY && t->review_probe) buffer_text(&b,"Reassess previous review independently; do not waive any criterion or permission. Distinguish safe repairable gaps from real blockers. PASS needs evidence for every required deliverable. ");
+@@ -853,2 +880,7 @@
+             if (r->phase==WORK) { if (YES(&reply,"needsReview")) {r->mode=REVIEW; task_error(r,evidence);} step(r,TEST,evidence); }
++            else if (*review_blocker(evidence)) {
++                /* No automatic probe or repair when the verifier explicitly reports
++                   an access/resource blocker. Even contradictory met:true cannot PASS. */
++                task_error(r,evidence); r->mode=REVIEW; step(r,VERIFY,evidence);
++            }
+             else if (YES(&reply,"needsReview")) {
+@@ -911,2 +943,16 @@
+         if (r->retry_at>timestamp()) return;
++        if (r->resume_verify) {
++            r->resume_verify=0;
++            if (r->phase==VERIFY && r->index<r->count) {
++                Task *t=&r->tasks[r->index]; char signature[65]; int code=-1; Error check={0};
++                if (!*t->test_signature || !test_signature(r,signature) || strcmp(t->test_signature,signature) ||
++                    !valid_test(m,r,t->test_session,&code,NULL,&check) || code!=0) {
++                    t->test_session[0]=0; t->test_signature[0]=0; r->test=0;
++                    step(r,TEST,"Biên nhận test thiếu hoặc fingerprint đã đổi. Cần test lại trước khi nghiệm thu."); save(m,r,&e); return;
++                }
++                r->test=1;
++                note(r,"Giữ biên nhận test exit 0 theo fingerprint checkpoint và lệnh đã ghi. Vẫn cần nghiệm thu thực tế.");
++            }
++            if (!save(m,r,&e)) return;
++        }
+         if (r->phase==VERIFY && !valid_id(r->tasks[r->index].test_session)) {
+@@ -1048,3 +1094,3 @@
+     if (!backup_amendment(m,r,backup,e)) return 0;
+-    strcpy(t->accept,proposed); t->review_probe=0; t->evidence[0]=0; t->test_session[0]=0; t->verify_session[0]=0;
++    strcpy(t->accept,proposed); r->resume_verify=0; t->test_signature[0]=0; t->review_probe=0; t->evidence[0]=0; t->test_session[0]=0; t->verify_session[0]=0;
+     r->attempt=0; r->failure_hash[0]=0; r->failure_gate[0]=0; r->test=0; r->build=0;
+@@ -1077,4 +1123,6 @@
+         if (r->index<r->count && r->phase!=PLAN) {
+-            r->recovery_scan=1; r->tasks[r->index].test_session[0]=0;
+-            r->phase=TEST;
++            r->recovery_scan=1;
++            Task *t=&r->tasks[r->index];
++            r->resume_verify=r->phase==VERIFY && *review_blocker(t->evidence) && valid_id(t->test_session);
++            if (!r->resume_verify) { t->test_session[0]=0; t->test_signature[0]=0; r->test=0; r->phase=TEST; }
+         }
+--- a/web/app.js
++++ b/web/app.js
+@@ -314,4 +314,5 @@
+         <p><strong>${html(r.tasks[r.index]?.title || phaseName[r.phase])}</strong><br>${html(r.reason)}</p>
++        ${r.blocker?`<p><strong>${html(r.blocker)}</strong> · ${r.blocker==="BLOCKED_ACCESS"?"Codex báo bị chặn quyền đọc. Kiểm tra quyền hợp lệ trước RESUME.":"Codex báo thiếu tài nguyên bắt buộc. Bổ sung tài nguyên trước RESUME."} Không tự cấp PASS.</p>`:""}
+         <p>Test gần nhất ${flag(r.test)} · Build gần nhất ${flag(r.build)} · Auto Resume ${r.autoResume?"bật":"tắt"}</p>
+-        ${["review","blocked"].includes(r.mode)?`<p class="muted">RESUME tự phục hồi dữ liệu nội bộ và xử lý tiêu chí lịch sử Task 2 đã biết. Yêu cầu bắt buộc vẫn phải đạt. Không tạo lại hàng đợi.</p>`:""}
++        ${["review","blocked"].includes(r.mode)?`<p class="muted">RESUME giữ nhiệm vụ đã PASS hợp lệ. Khi đối chiếu bị chặn, test cũ chỉ được giữ nếu biên nhận và fingerprint khớp checkpoint/lệnh. Vẫn kiểm tra đầy đủ tiêu chí; không tự cấp PASS.</p>`:""}
+         <div class="actions">${controls}${resume}${amend}${stop}${handover}
+@@ -371,3 +372,3 @@
+   show(stop?"Dừng tác vụ":"Tiếp tục từ checkpoint",
+-    `<p>${stop?"Manager sẽ dừng tiến trình của hàng đợi và sao lưu các thay đổi đã ghi.":"Kiểm tra các thay đổi trong workspace trước khi tiếp tục. Lệnh kiểm thử hoặc build bị gián đoạn có thể được chạy lại."}</p>`,
++    `<p>${stop?"Manager sẽ dừng tiến trình của hàng đợi và sao lưu các thay đổi đã ghi.":"Kiểm tra quyền đọc và tài nguyên còn thiếu trước khi tiếp tục. Test thiếu biên nhận hoặc fingerprint thay đổi sẽ chạy lại; mọi tiêu chí vẫn phải được nghiệm thu."}</p>`,
+     stop?"STOP":"RESUME",()=>savedDialog("Đang lưu trạng thái…","runner-"+action,body,stop?"Đã yêu cầu dừng.":"Đã yêu cầu tiếp tục."));
+@@ -1836,3 +1837,3 @@
+     const fields=t=>({title:t.title,accept:t.accept,status:t.status,evidence:t.evidence,receiptVersion:t.receiptVersion,checkpoint:t.checkpoint,checkpointKind:t.checkpointKind,recoveryCheckpoint:t.recoveryCheckpoint,baselineCheckpoint:t.baselineCheckpoint,baselineFromRecovery:t.baselineFromRecovery,changedFilesStatus:t.changedFilesStatus,changedFileCount:t.changedFileCount,changedFiles:t.changedFiles,errorsStatus:t.errorsStatus,errorCount:t.errorCount,errors:t.errors,commandsStatus:t.commandsStatus,commandCount:t.commandCount,commands:t.commands,reviewProbe:t.reviewProbe,testSession:t.testSession,verifySession:t.verifySession});
+-    const report=JSON.stringify({revision:r.revision,phase:r.phase,mode:r.mode,index:r.index,attempt:r.attempt,test:r.test,build:r.build,reason:r.reason,tasks:r.tasks.slice(Math.max(0,r.index-1),r.index+1).map(fields),log:(r.log||[]).filter(Boolean)},null,2);
++    const report=JSON.stringify({revision:r.revision,phase:r.phase,mode:r.mode,index:r.index,attempt:r.attempt,test:r.test,build:r.build,blocker:r.blocker||"",reason:r.reason,tasks:r.tasks.slice(Math.max(0,r.index-1),r.index+1).map(fields),log:(r.log||[]).filter(Boolean)},null,2);
+     show("Chẩn đoán Autonomous",`<p>Đây là trích đoạn cục bộ gồm task hiện tại và task trước. Không gồm hồ sơ đăng nhập hoặc CODEX_HOME. Có thể chứa tên tệp và thông tin dự án; kiểm tra trước khi chia sẻ.</p><textarea readonly rows="16" style="width:100%">${html(report)}</textarea>`,"Sao chép",async()=>{try{await navigator.clipboard.writeText(report);notify("Đã sao chép chẩn đoán.");}catch(e){notify("Không sao chép được; hãy chọn nội dung và Ctrl+C.","error");}});
+--- a/tests/integration.py
++++ b/tests/integration.py
+@@ -279,2 +279,6 @@
+                     response={"met":False,"needsReview":True,"evidence":"Possible missing bookkeeping evidence; verify independently."}
++                if phase=="VERIFY" and (home/"blocked-access").exists():
++                    response={"met":False,"needsReview":True,"evidence":"BLOCKED_ACCESS: read-only fixture cannot read required evidence."}
++                if phase=="VERIFY" and (home/"blocked-resource").exists():
++                    response={"met":True,"needsReview":False,"evidence":"BLOCKED_RESOURCE: missing required fixture device."}
+                 if (home/"needs-review").exists() and phase=="VERIFY":
+@@ -638,2 +642,41 @@
+ 
++    def test_resume_access_blocker_reuses_matching_test(self):
++        cmd=self.runner_fixture(); home=self.root/"Autonomous"; (home/"blocked-access").touch()
++        rid=self.req("runner-start",cmd)["id"]; ctl={"project":cmd["project"],"id":rid,"confirmed":True}
++        def held():return self.run_state(rid,lambda r:r["mode"]=="review" and not r["snapshot"])
++        r=held(); sid=r["tasks"][0]["testSession"]
++        self.assertTrue(sid and r["tasks"][0]["testSignature"])
++        self.assertEqual((r["index"],r["blocker"],r["tasks"][0]["reviewProbe"]),(0,"BLOCKED_ACCESS",0))
++        self.req("exit"); self.proc.wait(); self.launch()
++        self.req("runner-resume",ctl); r=held()
++        self.assertEqual(r["tasks"][0]["testSession"],sid)
++        self.assertEqual(r["index"],0)
++        (home/"blocked-access").unlink()
++        self.req("runner-resume",ctl)
++        r=self.run_state(rid,lambda r:r["mode"] in ("done","review","blocked") and not r["snapshot"])
++        self.assertEqual((r["mode"],r["index"]),("done",2),r["reason"])
++        self.assertEqual(r["tasks"][0]["testSession"],sid)
++
++    def test_handover_access_blocker_retests_changed_workspace(self):
++        cmd=self.runner_fixture(); home=self.root/"Autonomous"; (home/"blocked-access").touch()
++        target=self.add_profile("Destination"); (self.root/"Destination"/"auto-fixture").touch()
++        rid=self.req("runner-start",cmd)["id"]
++        r=self.run_state(rid,lambda r:r["mode"]=="review" and not r["snapshot"])
++        sid=r["tasks"][0]["testSession"]
++        (self.workspace/"changed-input.txt").write_text("new input after test")
++        self.req("runner-handover",{"project":cmd["project"],"id":rid,"confirmed":True,"destination":target})
++        r=self.run_state(rid,lambda r:r["mode"] in ("done","review","blocked") and not r["snapshot"])
++        self.assertEqual((r["mode"],r["index"],r["profile"]),("done",2,target),r["reason"])
++        self.assertNotEqual(r["tasks"][0]["testSession"],sid)
++        self.assertEqual(self.session(r["tasks"][0]["testSession"])["exitCode"],0)
++
++    def test_reported_resource_blocker_never_passes(self):
++        cmd=self.runner_fixture(); home=self.root/"Autonomous"; (home/"blocked-resource").touch()
++        rid=self.req("runner-start",cmd)["id"]
++        r=self.run_state(rid,lambda r:r["mode"]=="review" and not r["snapshot"])
++        self.assertEqual((r["index"],r["blocker"],r["tasks"][0]["reviewProbe"]),(0,"BLOCKED_RESOURCE",0))
++        self.assertEqual(r["tasks"][0]["status"],"NOT VERIFIED")
++        self.assertFalse(r["tasks"][0]["verifySession"])
++        self.assertEqual((self.workspace/"actions.txt").read_text().count("work\n"),1)
++
+     def test_command_receipt_observed_and_redacted(self):

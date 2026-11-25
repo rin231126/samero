@@ -12,6 +12,8 @@ Verified in this publishing workflow:
 - Linux and Windows x64 builds; PE and seven icon resource checks.
 - Seven JavaScript unit suites, three audio decode checks.
 - Local Bridge and Continuous Development integration tests.
+- Regression suite includes RESUME across restart with a matching recorded test fingerprint, HANDOVER after workspace changes, and access/resource blockers that cannot grant PASS.
+- Test fingerprint covers tracked workspace bytes, configured executable bytes and arguments; it does not establish unchanged external dependencies or replace independent acceptance.
 - Actual Linux Chrome Manager and embedded asset bytes; five viewport sizes.
 - Native Windows isolated smoke test: startup, workspace/profile management, bridge, checkpoint/restore.
 The app's six role sprites, original logo, screenshots, video and downloads are generated from this same source archive.
