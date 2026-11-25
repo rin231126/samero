@@ -29,3 +29,14 @@ assert '#define SAM_VERSION "1.0.0-rc1"' in (APP/'src/manager.h').read_text()
 for f in (APP/'tools/launch-role-art').glob('*.png'):
     assert f.read_bytes()==(APP/'web/mascot'/f.name).read_bytes()
 print('PASS: original source archive digest, safe extraction, 1.0.0 version, canonical role bytes')
+
+
+# Ubuntu's GCC can inject glibc-only fortified libc symbols by default.
+# The custom Windows PE cross-link path uses Win32/MSVCRT, not glibc.
+# Keep Linux compiler defaults and all existing PE link mitigations unchanged.
+p=APP/'tools/build.py'
+s=p.read_text()
+old='run("gcc", *flags, "-DSAM_WINDOWS", "-mabi=ms",'
+new='run("gcc", *flags, "-U_FORTIFY_SOURCE", "-D_FORTIFY_SOURCE=0", "-DSAM_WINDOWS", "-mabi=ms",'
+assert s.count(old)==1, 'unexpected Windows compiler invocation'
+p.write_text(s.replace(old,new))
