@@ -1,0 +1,109 @@
+name: SAMERO unified 1.0.0 RC1
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/unified-release.yml'
+      - 'release-input/**'
+      - 'scripts/unified-*.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+concurrency:
+  group: samero-unified-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-pil ffmpeg fonts-dejavu-core gcc binutils
+          python -m pip install playwright==1.56.0 pillow
+      - name: Extract canonical source and build both targets
+        run: |
+          python scripts/unified-prepare.py
+          cd release-work/app
+          python tools/build.py linux ../samero-linux
+          python tools/build.py windows ../SAMERO-1.0.0-rc1.exe
+          python tests/pe_image.py ../SAMERO-1.0.0-rc1.exe
+          python tests/pe_icon.py ../SAMERO-1.0.0-rc1.exe
+          for test in tests/{bridge-extension,mascot-ui,music-ui,quota-ui,studio-audio,studio-ui,workforce-ui}.cjs; do node "$test"; done
+          for file in web/*.ogg; do ffmpeg -v error -xerror -i "$file" -f null -; done
+          python tests/bridge.py ../samero-linux
+          python tests/continuous.py ../samero-linux
+          python tests/integration.py ../samero-linux
+      - name: Capture actual app and test responsive views
+        run: |
+          python scripts/unified-preview.py release-work/samero-linux
+          rm -f release-work/samero-linux
+          find release-work/app -type d -name __pycache__ -prune -exec rm -rf {} +
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release-input
+          path: release-work/
+          include-hidden-files: true
+          retention-days: 7
+  windows:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-release-input
+          path: release-work
+      - name: Run actual native Windows smoke test
+        shell: pwsh
+        run: ./release-work/app/tests/windows-smoke.ps1 -Exe ./release-work/SAMERO-1.0.0-rc1.exe
+  publish:
+    needs: [build, windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-release-input
+          path: release-work
+      - name: Prepare render and test tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-pil ffmpeg fonts-dejavu-core
+          python -m pip install playwright==1.56.0
+      - name: Package exact verified EXE and source, render video
+        run: |
+          /usr/bin/python3 scripts/unified-pack.py
+          /usr/bin/python3 scripts/unified-film.py
+      - name: Test bilingual website, real downloads, media, favicon
+        run: python scripts/unified-test.py
+      - name: Save screenshots and film contact sheet
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-website-visual-qa
+          path: |
+            website-qa/
+            film-contact-sheet.jpg
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Publish the verified synchronized release
+        run: |
+          git diff --check
+          git add index.html en.html favicon.ico site-1.0.0.css site-1.0.0.js assets downloads
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --cached --quiet; then
+            git commit -m "Release SAMERO 1.0.0 RC1: matching app, source, mascot artwork and website"
+            git push origin HEAD:main
+          fi
+      - name: Request Pages rebuild
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${{ github.repository }}/pages/builds"
