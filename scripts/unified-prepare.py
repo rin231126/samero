@@ -77,3 +77,6 @@ subprocess.run([sys.executable, str(ROOT/'scripts/unified-public-update.py'), st
 
 # Public R3 streaming download and explicit side-by-side restart.
 subprocess.run([sys.executable, str(ROOT/'scripts/unified-public-r3.py'), str(APP)], check=True)
+
+# Preserve Windows launch prompts; initialize COM and report native launch errors.
+subprocess.run([sys.executable, str(ROOT/'scripts/unified-update-launch.py'), str(APP)], check=True)
