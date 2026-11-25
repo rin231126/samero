@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/update-native-diagnose.yml'
       - 'scripts/update-launch-trace.py'
+      - 'scripts/native-local-fixture.py'
+      - 'scripts/windows-native-local-update.ps1'
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,11 +27,20 @@ jobs:
           GITHUB_RUN_NUMBER=0 python tools/build.py windows ../update-native-test.exe
           python tests/pe_image.py ../update-native-test.exe
           node tests/update-ui.cjs
+          GITHUB_RUN_NUMBER=9 python tools/build.py windows ../update-local-candidate.exe
+          python ../../scripts/native-local-fixture.py .
+          GITHUB_RUN_NUMBER=0 python tools/build.py windows ../update-local-test.exe
+          python tests/pe_image.py ../update-local-candidate.exe
+          python tests/pe_image.py ../update-local-test.exe
+          cp ../../scripts/windows-native-local-update.ps1 ../windows-native-local-update.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: native-update-diagnose
           path: |
             release-work/update-native-test.exe
+            release-work/update-local-candidate.exe
+            release-work/update-local-test.exe
+            release-work/windows-native-local-update.ps1
             release-work/app/tests/windows-update-smoke.ps1
           retention-days: 2
   windows:
@@ -44,3 +55,16 @@ jobs:
       - name: Trace real HTTPS update handoff without bypassing security prompts
         shell: pwsh
         run: ./release-work/app/tests/windows-update-smoke.ps1 -Exe ./release-work/update-native-test.exe
+
+  windows-local:
+    runs-on: windows-latest
+    needs: build
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-update-diagnose
+          path: release-work
+      - name: Verify native process handoff using CI-built local artifact
+        shell: pwsh
+        run: ./release-work/windows-native-local-update.ps1 -Exe ./release-work/update-local-test.exe -Fixture ./release-work/update-local-candidate.exe
