@@ -29,8 +29,13 @@ with tempfile.TemporaryDirectory(prefix='samero-preview-') as td:
             page.on('pageerror',lambda e:errors.append(str(e)))
             page.on('response',lambda r:bad.append((r.status,r.url)) if r.status>=400 else None)
             page.goto(url,wait_until='domcontentloaded')
-            page.wait_for_selector('#content .hero')
+            # The current release starts on Workspace, whose rendered root is
+            # .chat-grid, not .hero. Wait for the real state-driven view.
+            page.wait_for_selector('#content .chat-grid', timeout=30000)
+            assert page.locator('body').get_attribute('data-page') == 'chat'
             page.locator('button[data-page=studio]').click()
+            page.wait_for_selector('#content .studio-hero', timeout=30000)
+            assert page.locator('body').get_attribute('data-page') == 'studio'
             page.wait_for_selector('.office-station img')
             assert page.locator('.office-station').count()==7
             page.locator('[data-studio-theme=ocean]').click()
