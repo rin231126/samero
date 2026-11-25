@@ -1,0 +1,11 @@
+SAMERO 1.0.0-rc1 — first public release candidate
+EXE SHA-256: be9b896e543d7fc673eb95601cfb36e1b7bf1751a93ecf4f37d45fa69792eb74
+Windows 10/11 x64. Unsigned release candidate; not an official OpenAI product.
+Verified in this publishing workflow:
+- Linux and Windows x64 builds; PE and seven icon resource checks.
+- Seven JavaScript unit suites, three audio decode checks.
+- Local Bridge and Continuous Development integration tests.
+- Actual Linux Chrome Manager and embedded asset bytes; five viewport sizes.
+- Native Windows isolated smoke test: startup, workspace/profile management, bridge, checkpoint/restore.
+The app's six role sprites, original logo, screenshots, video and downloads are generated from this same source archive.
+Not verified: authenticated live Codex operation, audio hardware, all Windows desktop configurations. See workflow logs for full regression results.
