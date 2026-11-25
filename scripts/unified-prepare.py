@@ -65,3 +65,6 @@ print('PASS: exact locally tested resume/handover source and regression tests, v
 
 # Preserve version 1.0 and add authenticated desktop UI lifetime management.
 subprocess.run([sys.executable, str(ROOT/'scripts/unified-lifetime.py'), str(APP)], check=True)
+
+# Probe the confirmed read-only sandbox before spending model quota on VERIFY.
+subprocess.run([sys.executable, str(ROOT/'scripts/unified-access.py'), str(APP)], check=True)
