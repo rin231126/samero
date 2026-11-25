@@ -1,0 +1,69 @@
+name: Restore website assets
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'SAMERO-Website-V2.zip'
+      - '.github/workflows/restore-website.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+concurrency:
+  group: restore-samero-website
+  cancel-in-progress: false
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Verify and extract the published bundle
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, zipfile
+          from pathlib import Path
+          archive = Path('SAMERO-Website-V2.zip')
+          assert hashlib.sha256(archive.read_bytes()).hexdigest() == '891c6731f1b6da4849c93cf0f2bbf2a60c74e766cf9c0362ac3f9fff6d9318f2'
+          expected = {
+              'assets/normal.png', 'assets/open.png', 'assets/anim-normal.png',
+              'assets/office-owl.png', 'assets/office-beaver.png', 'assets/office-cat.png',
+              'assets/office-wolf.png', 'assets/office-rabbit.png', 'assets/office-penguin.png',
+              'assets/studio.png', 'assets/studio-top.png', 'assets/characters.png',
+              'assets/trailer-poster.jpg', 'assets/SAMERO-Intro.mp4',
+              'downloads/SAMERO-1.9.0.exe', 'downloads/SAMERO-1.9.0-Portable.zip',
+              'downloads/SHA256SUMS.txt', 'downloads/TEST-RESULTS.txt'
+          }
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              assert expected <= set(z.namelist())
+              for name in sorted(expected):
+                  target = Path(name)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(z.read(name))
+              for name in ('index.html', 'en.html'):
+                  assert Path(name).read_bytes() == z.read(name), name
+          for line in Path('downloads/SHA256SUMS.txt').read_text().splitlines():
+              digest, filename = line.split(maxsplit=1)
+              assert Path(filename).name == filename
+              assert hashlib.sha256((Path('downloads') / filename).read_bytes()).hexdigest() == digest, filename
+          print('Verified all assets and release checksums')
+          PY
+      - name: Commit missing assets
+        shell: bash
+        run: |
+          git add -- assets downloads
+          if git diff --cached --quiet; then
+            echo "All assets already present"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Restore SAMERO website assets from verified release archive"
+            git push origin HEAD:main
+          fi
+      - name: Request Pages rebuild
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${{ github.repository }}/pages/builds"
