@@ -1,0 +1,66 @@
+name: Launch website 1.0
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/website-v1.yml'
+      - 'scripts/site-v1-*'
+      - 'scripts/render-film-v1.py'
+      - 'scripts/test-site-v1.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+concurrency:
+  group: samero-website-v1
+  cancel-in-progress: false
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Prepare renderer and browser checks
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-pil ffmpeg fonts-dejavu-core
+          python -m pip install playwright==1.56.0
+          google-chrome --version
+      - name: Check release integrity and create launch media
+        run: |
+          (cd downloads && sha256sum -c SHA256SUMS.txt)
+          sha256sum downloads/*.exe downloads/*.zip assets/normal.png assets/open.png > /tmp/release-before
+          /usr/bin/python3 scripts/render-film-v1.py
+          cp scripts/site-v1-vi.html index.html
+          cp scripts/site-v1-en.html en.html
+          cp scripts/site-v1.css site-v1.css
+          cp scripts/site-v1.js site-v1.js
+          sha256sum -c /tmp/release-before
+      - name: Test six browser layouts and interactions
+        run: python scripts/test-site-v1.py
+      - name: Save visual QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SAMERO-website-v1-visual-QA
+          path: |
+            website-qa/
+            film-contact-sheet.jpg
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Publish only after passing checks
+        run: |
+          git diff --check
+          git add index.html en.html site-v1.css site-v1.js assets/demo-*.jpg assets/film-*.vtt assets/film-poster.jpg assets/SAMERO-Film-1.0.mp4
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Launch website 1.0: cinematic film and tested responsive product showcase"
+            git push origin HEAD:main
+          fi
+      - name: Request Pages rebuild
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${{ github.repository }}/pages/builds"
