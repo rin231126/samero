@@ -1,0 +1,46 @@
+name: SAMERO native update diagnosis
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/update-native-diagnose.yml'
+      - 'scripts/update-launch-trace.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: samero-native-update-diagnose
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated diagnostic executable from canonical public source
+        run: |
+          python scripts/unified-prepare.py
+          python scripts/update-launch-trace.py release-work/app
+          cd release-work/app
+          GITHUB_RUN_NUMBER=0 python tools/build.py windows ../update-native-test.exe
+          python tests/pe_image.py ../update-native-test.exe
+          node tests/update-ui.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-update-diagnose
+          path: |
+            release-work/update-native-test.exe
+            release-work/app/tests/windows-update-smoke.ps1
+          retention-days: 2
+  windows:
+    runs-on: windows-latest
+    needs: build
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-update-diagnose
+          path: release-work
+      - name: Trace real HTTPS update handoff without bypassing security prompts
+        shell: pwsh
+        run: ./release-work/app/tests/windows-update-smoke.ps1 -Exe ./release-work/update-native-test.exe
