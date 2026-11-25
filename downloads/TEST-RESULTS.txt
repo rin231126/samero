@@ -1,0 +1,21 @@
+EXE SHA-256: 2ee60d8e59eceaf8e9676bcf53d442cee72c5e01a571158e58d560adb3f0275f
+SAMERO 1.9.0-studio-rc1 — Pixel AI Studio
+Phạm vi: giao diện, tài nguyên, âm thanh và cài đặt; không thay đổi bộ điều phối hay quyền. Không tự khởi chạy AI, không tự gửi prompt ChatGPT Web.
+
+ĐÃ TRIỂN KHAI
+- Pixel Studio riêng, Ocean Lab: 7 nhân vật 48×48 vẽ theo lưới pixel, bàn làm việc, cửa sổ đại dương có cá chuyển động. AI Workforce dùng lại văn phòng với vai trò được chọn. Trạng thái vai trò là cấu hình prompt, không phải agent độc lập.
+- 9 bộ sprite sheet 8 frame, blink, đuôi, bàn phím lúc focus, mũ mở/đóng qua toggle, chế độ nghỉ. Tôn trọng prefers-reduced-motion và tùy chọn motion. Không có thông báo gây áp lực sử dụng.
+- Sáu theme, màu nút chính tùy chỉnh, họa tiết nền, lưu cục bộ theo origin. Focus Mode tắt animation, nền trang, nhạc và âm thanh. Không làm đổi runner.
+- Ba nhạc nền nguyên bản, offline: Blue Current (38.4s), Harbor Lo-fi (24.615s), Deep Ocean (32s). Mặc định tắt, chọn track, volume, loop, xử lý lỗi và tắt khi Focus. Âm thanh click và mốc tăng số PASS tổng hợp, tùy chọn bật riêng. Không có nhạc bản quyền bên ngoài.
+- Mascot mini trong cửa sổ ứng dụng, tùy chọn mở cửa sổ popup nếu trình duyệt cho phép; không đảm bảo luôn nổi trên desktop. Mini chỉ nhận trạng thái mascot từ đúng cửa sổ Manager, không trao đổi dữ liệu dự án hay thông tin xác thực.
+- Splash dạng banner ngắn không trì hoãn việc mở app; mốc test/build exit 0, task PASS và hàng đợi hoàn tất dựa trên dữ liệu thực. Không dùng mốc để chứng minh phần mềm hoàn hảo.
+
+ĐÃ XÁC MINH TRÊN BẢN CUỐI
+- Linux/Windows x64 build, PE checksum/entry/import/relocation, 7 icon nhúng. Hai lần build Windows giống từng byte.
+- HTTP kiểm tra byte/MIME/CSP các tài nguyên nhúng và route lạ. JS unit: mascot, studio preferences và thống kê, 6 themes, mini message validation, nhạc, chọn track, Focus, UI cũ (60 tuyến nút), Workforce, extension mock.
+- 3 nhạc Ogg giải mã đầy đủ bằng FFmpeg. Đã dựng và xem preview HTML/CSS offline bằng Chromium với dữ liệu minh họa, không phải UI kết nối backend.
+- Local Bridge 5/5, Continuous Development 6/6, 4 ca hồi quy checkpoint/revision 61/metadata tạm PASS. Một ca progress receipts bị timeout của môi trường; chưa tính PASS. Chưa chạy lại toàn bộ 78 ca hay 3 ca CLI thật trên bản 1.9.0.
+
+CHƯA XÁC MINH
+- Chromium kết nối localhost bị ERR_BLOCKED_BY_ADMINISTRATOR; chưa nghiệm thu giao diện có backend thật, phát nhạc qua loa, popup thực tế hay Windows EXE thực tế. JS mock không chứng minh thao tác trình duyệt thật.
+- Không chạy lại toàn bộ kiểm thử. Bản ứng viên kiểm thử, chưa phát hành chính thức, chưa ký Authenticode. Cài đặt giao diện phụ thuộc origin, khi cổng thay đổi có thể cần đặt lại. Mini popup không phải cửa sổ native luôn-on-top.
