@@ -80,3 +80,6 @@ subprocess.run([sys.executable, str(ROOT/'scripts/unified-public-r3.py'), str(AP
 
 # Preserve Windows launch prompts; initialize COM and report native launch errors.
 subprocess.run([sys.executable, str(ROOT/'scripts/unified-update-launch.py'), str(APP)], check=True)
+
+# Pass observed sandbox-read proof to VERIFY and distinguish reported from observed denials.
+subprocess.run([sys.executable, str(ROOT/'scripts/unified-verify-evidence.py'), str(APP)], check=True)
