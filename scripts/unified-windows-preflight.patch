@@ -1,0 +1,61 @@
+diff --git a/src/chat.c b/src/chat.c
+--- a/src/chat.c
++++ b/src/chat.c
+@@ -303,7 +303,11 @@
+ #endif
+     buffer_char(&params,']'); KEY(&params,"cwd",l->workspace.p);
+     RAW(&params,"sandboxPolicy",c->access_policy.s);
+-    NUM(&params,"timeoutMs",10000); NUM(&params,"outputBytesCap",2048);
++    NUM(&params,"timeoutMs",10000);
++#ifndef SAM_WINDOWS
++    /* The Windows restricted-token backend only accepts its default output cap. */
++    if (!c->windows_server) { NUM(&params,"outputBytesCap",2048); }
++#endif
+     buffer_char(&params,'}');
+     c->access_request=c->next++;
+     c->deadline=monotonic_ms()+15000;
+diff --git a/tests/integration.py b/tests/integration.py
+--- a/tests/integration.py
++++ b/tests/integration.py
+@@ -204,7 +204,14 @@
+     elif method == "command/exec":
+         assert sandbox=="read-only" and p["cwd"]==os.getcwd()
+         assert p["sandboxPolicy"]=={"type":"readOnly","networkAccess":False}
+-        assert p["timeoutMs"]==10000 and p["outputBytesCap"]==2048
++        assert p["timeoutMs"]==10000
++        if (home/"windows-readiness").exists():
++            if "outputBytesCap" in p:
++                emit({"id":r["id"],"error":{"code":-32600,"message":"custom outputBytesCap is not supported with windows sandbox"}})
++                continue
++            assert not p.get("disableOutputCap",False)
++        else:
++            assert p["outputBytesCap"]==2048
+         assert "SAMERO_LIST_FAILED" in p["command"][-1]
+         if (home/"preflight-unsupported").exists():
+             emit({"id":r["id"],"error":{"code":-32601,"message":"Method not found"}})
+@@ -919,6 +926,25 @@
+         for token in ("started=1;","commandResults=0;","otherToolResults=1;","errors=1;","denials=1;"):
+             self.assertIn(token,t["verifyObservation"])
+ 
++    def test_windows_preflight_uses_default_output_cap(self):
++        cmd=self.runner_fixture()
++        home=self.root/"Autonomous"
++        (home/"windows-readiness").write_text("ready")
++        (home/"verify-case").write_text("no-tools")
++        rid=self.req("runner-start",cmd)["id"]
++        r=self.run_state(rid,lambda r:r["mode"]=="review" and not r["snapshot"])
++        self.assertEqual((r["index"],r["blocker"]),(0,"BLOCKED_VERIFY"),r["reason"])
++        task=r["tasks"][0]
++        self.assertIn("preflight=READ_OK;",task["verifyObservation"])
++        self.assertFalse(task["verifySession"])
++        packets=[json.loads(line) for line in (home/"rpc.jsonl").read_text().splitlines()]
++        checks=[p["params"] for p in packets if p["method"]=="command/exec"]
++        self.assertEqual(len(checks),1)
++        self.assertNotIn("outputBytesCap",checks[0])
++        self.assertNotIn("disableOutputCap",checks[0])
++        self.assertEqual(checks[0]["sandboxPolicy"],{"type":"readOnly","networkAccess":False})
++        self.assertTrue(any(p["method"]=="turn/start" and p["params"]["input"][0]["text"].startswith("SAMERO VERIFY.") for p in packets))
++
+     def test_windows_readiness_stops_before_verify(self):
+         cmd=self.runner_fixture();home=self.root/"Autonomous";(home/"windows-readiness").write_text("notConfigured")
+         rid=self.req("runner-start",cmd)["id"];ctl={"id":rid,"project":cmd["project"],"confirmed":True}

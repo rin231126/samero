@@ -91,3 +91,9 @@ verify_apply = ['git', 'apply', '--whitespace=error', '--directory=release-work/
 subprocess.run([*verify_apply, '--check', '-'], cwd=ROOT, input=verify_patch, check=True)
 subprocess.run([*verify_apply, '-'], cwd=ROOT, input=verify_patch, check=True)
 print('PASS: Public VERIFY diagnostics applied to the prepared source')
+
+# Use Codex's default command output cap on Windows where the sandbox requires it.
+preflight_patch = (ROOT / 'scripts' / 'unified-windows-preflight.patch').read_bytes()
+subprocess.run([*verify_apply, '--check', '-'], cwd=ROOT, input=preflight_patch, check=True)
+subprocess.run([*verify_apply, '-'], cwd=ROOT, input=preflight_patch, check=True)
+print('PASS: Windows sandbox preflight uses the default command output cap')
