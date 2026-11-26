@@ -2,7 +2,7 @@
   "bytes": 991744,
   "channel": "public",
   "schema": 1,
-  "sequence": 14,
-  "sha256": "ab6908c3618c11def323b5c9415152d51a6e4191ea2ab0dac719db87c1a0889a",
+  "sequence": 15,
+  "sha256": "16e781882d3a1c1981a8c14aa44de2ea1ff58a6e6c8db4590b3ff592608cb2a2",
   "version": "1.0.0-rc1"
 }
